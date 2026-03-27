@@ -21,88 +21,98 @@ import {
  ) {} 
  
  async register(dto: RegisterDto) { 
- // Login band emasligini tekshirish 
- const existingLogin = await (this.prisma as any).user.findUnique({ 
- where: { login: dto.login }, 
- }); 
- if (existingLogin) throw new ConflictException('Bu login band'); 
+    try {
+      // Login band emasligini tekshirish 
+      const existingLogin = await (this.prisma as any).user.findUnique({ 
+        where: { login: dto.login }, 
+      }); 
+      if (existingLogin) throw new ConflictException('Bu login band'); 
 
- // Telefon raqami band emasligini tekshirish
- const existingPhone = await (this.prisma as any).user.findUnique({
-   where: { phone: dto.phone },
- });
- if (existingPhone) throw new ConflictException('Bu telefon raqami band');
+      // Telefon raqami band emasligini tekshirish
+      const existingPhone = await (this.prisma as any).user.findUnique({
+        where: { phone: dto.phone },
+      });
+      if (existingPhone) throw new ConflictException('Bu telefon raqami band');
+      
+      // Parolni hash qilish 
+      const hashedPassword = await bcrypt.hash(dto.password, 10); 
+      
+      // User yaratish 
+      const user = await (this.prisma as any).user.create({ 
+        data: { 
+          fullName: dto.fullName, 
+          login: dto.login, 
+          phone: dto.phone,
+          password: hashedPassword, 
+          role: dto.role, 
+        }, 
+      }); 
+      
+      // Agar admin bo'lsa — bo'sh maydon yaratish 
+      if (dto.role === Role.admin) { 
+        await (this.prisma as any).field.create({ 
+          data: { 
+            userId: user.id, 
+            name: `${dto.fullName} ning maydoni`, 
+            isActive: false, 
+          }, 
+        }); 
+      } 
+      
+      const tokens = this.generateTokens(user.id); 
+      
+      return { 
+        user: { 
+          id: user.id, 
+          fullName: user.fullName, 
+          login: user.login, 
+          phone: user.phone,
+          role: user.role, 
+        }, 
+        ...tokens, 
+      }; 
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+   } 
  
- // Parolni hash qilish 
- const hashedPassword = await bcrypt.hash(dto.password, 10); 
- 
- // User yaratish 
- const user = await (this.prisma as any).user.create({ 
- data: { 
- fullName: dto.fullName, 
- login: dto.login, 
- phone: dto.phone,
- password: hashedPassword, 
- role: dto.role, 
- }, 
- }); 
- 
- // Agar admin bo'lsa — bo'sh maydon yaratish 
- if (dto.role === Role.admin) { 
- await (this.prisma as any).field.create({ 
- data: { 
- userId: user.id, 
- name: `${dto.fullName} ning maydoni`, 
- isActive: false, 
- }, 
- }); 
- } 
- 
- const tokens = this.generateTokens(user.id); 
- 
- return { 
- user: { 
- id: user.id, 
- fullName: user.fullName, 
- login: user.login, 
- phone: user.phone,
- role: user.role, 
- }, 
- ...tokens, 
- }; 
- } 
- 
- async login(dto: LoginDto) { 
- // Userni topish (login yoki telefon raqami orqali)
- const user = await (this.prisma as any).user.findFirst({ 
- where: {
-   OR: [
-     { login: dto.login },
-     { phone: dto.login }
-   ]
- }, 
- include: { field: true }, 
- }); 
- if (!user) throw new UnauthorizedException('Login yoki parol noto\'g\'ri'); 
- 
- // Parolni tekshirish 
- const isMatch = await bcrypt.compare(dto.password, user.password); 
- if (!isMatch) throw new UnauthorizedException('Login yoki parol noto\'g\'ri'); 
- 
- const tokens = this.generateTokens(user.id); 
- 
- return { 
- user: { 
- id: user.id, 
- fullName: user.fullName, 
- login: user.login, 
- phone: user.phone,
- role: user.role, 
- field: (user as any).field, 
- }, 
- ...tokens, 
- }; 
- } 
+   async login(dto: LoginDto) { 
+    try {
+      // Userni topish (login yoki telefon raqami orqali)
+      const user = await (this.prisma as any).user.findFirst({ 
+        where: {
+          OR: [
+            { login: dto.login },
+            { phone: dto.login }
+          ]
+        }, 
+        include: { field: true }, 
+      }); 
+      if (!user) throw new UnauthorizedException('Login yoki parol noto\'g\'ri'); 
+      
+      // Parolni tekshirish 
+      const isMatch = await bcrypt.compare(dto.password, user.password); 
+      if (!isMatch) throw new UnauthorizedException('Login yoki parol noto\'g\'ri'); 
+      
+      const tokens = this.generateTokens(user.id); 
+      
+      return { 
+        user: { 
+          id: user.id, 
+          fullName: user.fullName, 
+          login: user.login, 
+          phone: user.phone,
+          role: user.role, 
+          field: (user as any).field, 
+        }, 
+        ...tokens, 
+      }; 
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+   } 
  
  async getMe(userId: string) { 
      return (this.prisma as any).user.findUnique({ 

@@ -57,23 +57,20 @@ export class FieldsService {
     const apiKey = process.env.IMGBB_API_KEY;
 
     if (!apiKey) {
-      console.error('ERROR: IMGBB_API_KEY is not defined in the environment variables!');
-      throw new InternalServerErrorException('Image upload service is not configured');
+      console.error('CRITICAL: IMGBB_API_KEY is not defined in the environment variables!');
+      throw new InternalServerErrorException('Image upload service configuration error. Please contact administrator.');
     }
 
     try {
       const form = new FormData();
       form.append('key', apiKey);
-      form.append('image', file.buffer, {
-        filename: file.originalname,
-        contentType: file.mimetype,
-      });
+      form.append('image', file.buffer.toString('base64'));
 
       const response = await axios.post('https://api.imgbb.com/1/upload', form, {
         headers: {
           ...form.getHeaders(),
         },
-        timeout: 30000, // 30 seconds timeout as requested
+        timeout: 30000,
       });
 
       if (response.data && response.data.success) {

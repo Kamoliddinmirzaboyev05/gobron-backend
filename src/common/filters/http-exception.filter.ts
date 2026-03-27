@@ -4,28 +4,53 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  catch(exception: unknown, host: ArgumentsHost) {
+  private readonly logger = new Logger('HttpExceptionFilter');
+
+  catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
-    const message =
+
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Extract error response
+    const errorResponse =
       exception instanceof HttpException
         ? exception.getResponse()
-        : 'Internal server error';
+        : { message: 'Internal server error' };
 
-    response.status(status).json({
+    const message =
+      typeof errorResponse === 'object' && (errorResponse as any).message
+        ? (errorResponse as any).message
+        : errorResponse;
+
+    const errorDetails = {
       statusCode: status,
-      message,
       timestamp: new Date().toISOString(),
-    });
+      path: request.url,
+      method: request.method,
+      message: message,
+      // Hide stack trace in production
+      stack: isProduction ? undefined : exception?.stack,
+    };
+
+    // Detailed logging for Render/Production logs
+    this.logger.error(
+      `${request.method} ${request.url} [${status}]: ${JSON.stringify(message)}`,
+      exception?.stack,
+    );
+
+    response.status(status).json(errorDetails);
   }
 }
