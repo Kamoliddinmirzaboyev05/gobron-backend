@@ -52,6 +52,8 @@ generator client {
  field Field? 
  bookings Booking[] 
  notifications Notification[] 
+ reviews Review[] 
+ favorites Favorite[] 
  
  @@map("users") 
  } 
@@ -74,14 +76,45 @@ generator client {
  closeTime String @default("23:00") @map("close_time") 
  phone String? 
  isActive Boolean @default(false) @map("is_active") 
+ rating Float @default(0) 
+ reviewCount Int @default(0) @map("review_count") 
  createdAt DateTime @default(now()) @map("created_at") 
  
  user User @relation(fields: [userId], references: [id], onDelete: Cascade) 
  timeSlots TimeSlot[] 
  bookings Booking[] 
  subscriptions Subscription[] 
+ reviews Review[] 
+ favorites Favorite[] 
  
  @@map("fields") 
+ } 
+
+ model Review { 
+ id String @id @default(uuid()) 
+ userId String @map("user_id") 
+ fieldId String @map("field_id") 
+ rating Int @default(5) 
+ comment String? 
+ createdAt DateTime @default(now()) @map("created_at") 
+ 
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade) 
+ field Field @relation(fields: [fieldId], references: [id], onDelete: Cascade) 
+ 
+ @@map("reviews") 
+ } 
+ 
+ model Favorite { 
+ id String @id @default(uuid()) 
+ userId String @map("user_id") 
+ fieldId String @map("field_id") 
+ createdAt DateTime @default(now()) @map("created_at") 
+ 
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade) 
+ field Field @relation(fields: [fieldId], references: [id], onDelete: Cascade) 
+ 
+ @@unique([userId, fieldId]) 
+ @@map("favorites") 
  } 
  
  model TimeSlot { 

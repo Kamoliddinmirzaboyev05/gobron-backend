@@ -7,10 +7,16 @@ import {
   Param,
   Query,
   UseGuards,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FieldsService } from './fields.service';
 import { UpdateFieldDto } from './dto/update-field.dto';
+import { SearchFieldsDto } from './dto/search-fields.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -21,6 +27,13 @@ import { Role } from '@prisma/client';
 @Controller('fields')
 export class FieldsController {
   constructor(private fieldsService: FieldsService) {}
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search and filter fields by name, city, price, rating and amenities' })
+  @ApiResponse({ status: 200, description: 'Return list of fields matching search criteria' })
+  search(@Query() dto: SearchFieldsDto) {
+    return this.fieldsService.search(dto);
+  }
 
   // Public: barcha aktiv maydonlar (city filter bilan)
   @Get()
@@ -68,6 +81,51 @@ export class FieldsController {
   @ApiOperation({ summary: 'Adminning o\'z maydonini qisman yangilashi (PATCH)' })
   updatePatch(@CurrentUser('id') userId: string, @Body() dto: UpdateFieldDto) {
     return this.fieldsService.update(userId, dto);
+  }
+
+  // Admin: maydon rasmini yuklash
+  @Post('admin/my/upload-image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin, Role.superadmin)
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Admin maydon rasmini yuklashi (Multipart form-data)',
+    schema: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    }
+  })
+  @ApiOperation({ summary: 'Admin maydon rasmini yuklashi' })
+  async uploadImage(@CurrentUser('id') userId: string, @UploadedFile() file: Express.Multer.File) {
+    try {
+      if (!file) {
+        throw new BadRequestException('Rasm fayli kerak');
+      }
+      
+      console.log('Fayl qabul qilindi:', file.originalname);
+      console.log('Fayl hajmi:', file.size);
+      console.log('Fayl turi:', file.mimetype);
+      
+      // Adminning o'z maydonini topish
+      const field = await this.fieldsService.findMyField(userId);
+      
+      const result = await this.fieldsService.uploadImage(field.id, file);
+      return {
+        success: true,
+        message: 'Rasm muvaffaqiyatli yuklandi',
+        data: result
+      };
+    } catch (error) {
+      console.error('Rasm yuklashda xato:', error);
+      throw error;
+    }
   }
 
   // Admin: o'z maydonini to'liq yangilash (PUT)

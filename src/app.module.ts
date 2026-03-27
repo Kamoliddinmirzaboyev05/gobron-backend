@@ -8,6 +8,8 @@ import { GatewayModule } from './gateway/gateway.module';
 import { SlotsModule } from './slots/slots.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { FavoritesModule } from './favorites/favorites.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -24,6 +26,8 @@ import { AppService } from './app.service';
     SlotsModule,
     NotificationsModule,
     BookingsModule,
+    ReviewsModule,
+    FavoritesModule,
   ],
 })
 export class AppModule {}

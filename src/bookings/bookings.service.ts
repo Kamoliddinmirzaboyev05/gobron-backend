@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppGateway } from '../gateway/app.gateway';
+import { BookingsGateway } from '../gateway/bookings.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SlotsService } from '../slots/slots.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -17,6 +18,7 @@ export class BookingsService {
   constructor(
     private prisma: PrismaService,
     private gateway: AppGateway,
+    private bookingsGateway: BookingsGateway,
     private notifications: NotificationsService,
     private slots: SlotsService,
   ) {}
@@ -52,11 +54,24 @@ export class BookingsService {
       },
     });
 
-    // Admin ga Socket.io xabar
+    // Admin ga Socket.io xabar (AppGateway)
     this.gateway.emitNewBooking(booking.field.userId, {
       id: booking.id,
       userName: booking.user.fullName,
       userPhone: '', // User modelida phone yo'q
+      fieldName: booking.field.name,
+      bookingDate: dto.bookingDate,
+      startTime: dto.startTime,
+      endTime: dto.endTime,
+      totalPrice: dto.totalPrice,
+      status: 'pending',
+      createdAt: booking.createdAt,
+    });
+
+    // Admin ga Socket.io xabar (BookingsGateway)
+    this.bookingsGateway.sendNewBooking(booking.field.userId, {
+      id: booking.id,
+      userName: booking.user.fullName,
       fieldName: booking.field.name,
       bookingDate: dto.bookingDate,
       startTime: dto.startTime,
@@ -169,8 +184,19 @@ export class BookingsService {
       await this.notifications.notifyUserRejected(updated);
     }
 
-    // User ga Socket.io xabar
+    // User ga Socket.io xabar (AppGateway)
     this.gateway.emitBookingStatusChanged(booking.userId, {
+      id: updated.id,
+      status: updated.status,
+      fieldName: updated.field.name,
+      bookingDate: updated.bookingDate,
+      startTime: updated.startTime,
+      endTime: updated.endTime,
+      rejectReason: updated.rejectReason,
+    });
+
+    // Real-time xabar (BookingsGateway)
+    this.bookingsGateway.sendBookingUpdated(booking.userId, booking.field.userId, {
       id: updated.id,
       status: updated.status,
       fieldName: updated.field.name,

@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 import TelegramBot from 'node-telegram-bot-api';
 
 type BookingWithRelations = {
@@ -26,7 +27,10 @@ export class NotificationsService {
   private bot: TelegramBot | null = null;
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    private prisma: PrismaService,
+  ) {
     // Telegram bot hozircha o'chirilgan yoki keyinchalik qayta ko'rib chiqiladi
     this.logger.warn('Telegram xabarnomalari hozircha faol emas (login/password tizimi)');
   }
@@ -74,5 +78,54 @@ export class NotificationsService {
       `\nBoshqa vaqtni tanlashingiz mumkin.`;
 
     await this.send(booking.user.fullName, text);
+  }
+
+  // User: o'z xabarnomalarni ko'rish
+  async getMyNotifications(userId: string) {
+    return this.prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // User: xabarnomani o'qilgan qilish
+  async markAsRead(id: string, userId: string) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id },
+    });
+    if (!notification) throw new NotFoundException('Xabarnoma topilmadi');
+    if (notification.userId !== userId) throw new Error("Ruxsat yo'q");
+
+    return this.prisma.notification.update({
+      where: { id },
+      data: { isRead: true },
+    });
+  }
+
+  // Admin: bookingga xabar yuborish
+  async sendBookingNotification(
+    bookingId: string,
+    adminUserId: string,
+    message: string,
+  ) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { user: true, field: { include: { user: true } } },
+    });
+    if (!booking) throw new NotFoundException('Booking topilmadi');
+    if (booking.field.userId !== adminUserId) throw new Error("Ruxsat yo'q");
+
+    const notification = await this.prisma.notification.create({
+      data: {
+        userId: booking.userId,
+        bookingId,
+        type: 'booking_pending',
+        title: 'Admin xabari',
+        message,
+      },
+    });
+
+    await this.send(booking.user.fullName, message);
+    return notification;
   }
 }

@@ -7,44 +7,64 @@ export class SlotsService {
   constructor(private prisma: PrismaService) {}
 
   async getSlots(fieldId: string, date: string) {
-    return this.prisma.timeSlot.findMany({
-      where: { fieldId, slotDate: new Date(date) },
-      orderBy: { startTime: 'asc' },
-    });
+    try {
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error('Invalid date format');
+      }
+      
+      return this.prisma.timeSlot.findMany({
+        where: { fieldId, slotDate: parsedDate },
+        orderBy: { startTime: 'asc' },
+      });
+    } catch (error) {
+      console.error('Error in getSlots:', error);
+      throw error;
+    }
   }
 
   async generateSlotsForField(fieldId: string, date: Date) {
-    const field = await this.prisma.field.findUnique({
-      where: { id: fieldId },
-    });
-    if (!field) return;
-
-    const openHour = parseInt(field.openTime.split(':')[0]);
-    const closeHour = parseInt(field.closeTime.split(':')[0]);
-
-    const slots: Prisma.TimeSlotCreateManyInput[] = [];
-    for (let h = openHour; h < closeHour; h++) {
-      slots.push({
-        fieldId,
-        slotDate: date,
-        startTime: `${String(h).padStart(2, '0')}:00`,
-        endTime: `${String(h + 1).padStart(2, '0')}:00`,
-        isAvailable: true,
+    try {
+      const field = await this.prisma.field.findUnique({
+        where: { id: fieldId },
       });
-    }
+      if (!field) return;
 
-    await this.prisma.timeSlot.createMany({
-      data: slots,
-      skipDuplicates: true,
-    });
+      const openHour = parseInt(field.openTime.split(':')[0]);
+      const closeHour = parseInt(field.closeTime.split(':')[0]);
+
+      const slots: Prisma.TimeSlotCreateManyInput[] = [];
+      for (let h = openHour; h < closeHour; h++) {
+        slots.push({
+          fieldId,
+          slotDate: date,
+          startTime: `${String(h).padStart(2, '0')}:00`,
+          endTime: `${String(h + 1).padStart(2, '0')}:00`,
+          isAvailable: true,
+        });
+      }
+
+      await this.prisma.timeSlot.createMany({
+        data: slots,
+        skipDuplicates: true,
+      });
+    } catch (error) {
+      console.error('Error in generateSlotsForField:', error);
+      throw error;
+    }
   }
 
   async generateSlotsForDays(fieldId: string, days: number) {
-    for (let i = 0; i < days; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() + i);
-      date.setHours(0, 0, 0, 0);
-      await this.generateSlotsForField(fieldId, date);
+    try {
+      for (let i = 0; i < days; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+        date.setHours(0, 0, 0, 0);
+        await this.generateSlotsForField(fieldId, date);
+      }
+    } catch (error) {
+      console.error('Error in generateSlotsForDays:', error);
+      throw error;
     }
   }
 
@@ -54,15 +74,20 @@ export class SlotsService {
     startTime: string,
     endTime: string,
   ) {
-    const startHour = parseInt(startTime.split(':')[0]);
-    const endHour = parseInt(endTime.split(':')[0]);
+    try {
+      const startHour = parseInt(startTime.split(':')[0]);
+      const endHour = parseInt(endTime.split(':')[0]);
 
-    for (let h = startHour; h < endHour; h++) {
-      const slotStart = `${String(h).padStart(2, '0')}:00`;
-      await this.prisma.timeSlot.updateMany({
-        where: { fieldId, slotDate: date, startTime: slotStart },
-        data: { isAvailable: false },
-      });
+      for (let h = startHour; h < endHour; h++) {
+        const slotStart = `${String(h).padStart(2, '0')}:00`;
+        await this.prisma.timeSlot.updateMany({
+          where: { fieldId, slotDate: date, startTime: slotStart },
+          data: { isAvailable: false },
+        });
+      }
+    } catch (error) {
+      console.error('Error in markUnavailable:', error);
+      throw error;
     }
   }
 
@@ -72,15 +97,20 @@ export class SlotsService {
     startTime: string,
     endTime: string,
   ) {
-    const startHour = parseInt(startTime.split(':')[0]);
-    const endHour = parseInt(endTime.split(':')[0]);
+    try {
+      const startHour = parseInt(startTime.split(':')[0]);
+      const endHour = parseInt(endTime.split(':')[0]);
 
-    for (let h = startHour; h < endHour; h++) {
-      const slotStart = `${String(h).padStart(2, '0')}:00`;
-      await this.prisma.timeSlot.updateMany({
-        where: { fieldId, slotDate: date, startTime: slotStart },
-        data: { isAvailable: true },
-      });
+      for (let h = startHour; h < endHour; h++) {
+        const slotStart = `${String(h).padStart(2, '0')}:00`;
+        await this.prisma.timeSlot.updateMany({
+          where: { fieldId, slotDate: date, startTime: slotStart },
+          data: { isAvailable: true },
+        });
+      }
+    } catch (error) {
+      console.error('Error in markAvailable:', error);
+      throw error;
     }
   }
 }

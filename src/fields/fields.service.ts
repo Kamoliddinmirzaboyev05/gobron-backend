@@ -1,10 +1,144 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateFieldDto } from './dto/update-field.dto';
+import { SearchFieldsDto } from './dto/search-fields.dto';
+import axios from 'axios';
+import * as FormData from 'form-data';
 
 @Injectable()
 export class FieldsService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Search fields with filters
+   */
+  async search(dto: SearchFieldsDto) {
+    const { name, city, maxPrice, minRating, amenities } = dto;
+
+    const where: any = {
+      isActive: true,
+    };
+
+    if (name) {
+      where.name = { contains: name, mode: 'insensitive' };
+    }
+
+    if (city) {
+      where.city = { contains: city, mode: 'insensitive' };
+    }
+
+    if (maxPrice) {
+      where.pricePerHour = { lte: maxPrice };
+    }
+
+    if (minRating) {
+      where.rating = { gte: minRating };
+    }
+
+    if (amenities && amenities.length > 0) {
+      where.amenities = { hasEvery: amenities };
+    }
+
+    return (this.prisma.field as any).findMany({
+      where,
+      orderBy: [
+        { rating: 'desc' },
+        { createdAt: 'desc' },
+      ],
+    });
+  }
+
+  /**
+   * Uploads an image to ImgBB using their API v1
+   * @param file - The file received from Multer
+   * @returns Promise<string> - The URL of the uploaded image
+   */
+  private async uploadToImgBB(file: Express.Multer.File): Promise<string> {
+    const apiKey = process.env.IMGBB_API_KEY;
+
+    if (!apiKey) {
+      console.error('ERROR: IMGBB_API_KEY is not defined in the environment variables!');
+      throw new InternalServerErrorException('Image upload service is not configured');
+    }
+
+    try {
+      const form = new FormData();
+      form.append('key', apiKey);
+      form.append('image', file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype,
+      });
+
+      const response = await axios.post('https://api.imgbb.com/1/upload', form, {
+        headers: {
+          ...form.getHeaders(),
+        },
+        timeout: 30000, // 30 seconds timeout as requested
+      });
+
+      if (response.data && response.data.success) {
+        // Prefer display_url if available, otherwise use url
+        const imageUrl = response.data.data.display_url || response.data.data.url;
+        console.log(`Successfully uploaded image to ImgBB: ${imageUrl}`);
+        return imageUrl;
+      } else {
+        throw new Error('ImgBB upload failed: success flag is false');
+      }
+    } catch (error) {
+      console.error('ImgBB upload error details:', error.response?.data || error.message);
+      throw new BadRequestException(`Failed to upload image to ImgBB: ${error.message}`);
+    }
+  }
+
+  /**
+   * Main method to upload field image and update the database
+   * @param fieldId - The ID of the field to update
+   * @param file - The file received from Multer
+   * @returns Promise<any> - The updated field object
+   */
+  async uploadImage(fieldId: string, file: Express.Multer.File) {
+    if (!fieldId) throw new BadRequestException('Field ID is required');
+    if (!file) throw new BadRequestException('File is required');
+
+    console.log(`Starting image upload process for Field ID: ${fieldId}`);
+
+    // Find the field in the database
+    const field = await this.prisma.field.findUnique({
+      where: { id: fieldId },
+    });
+
+    if (!field) {
+      console.error(`Field not found with ID: ${fieldId}`);
+      throw new NotFoundException(`Field with ID ${fieldId} not found`);
+    }
+
+    // Clean existing images: remove "undefined", "your-storage.com", and empty strings
+    const cleanedImages = (field.images || []).filter((img) => {
+      if (!img) return false;
+      if (img.includes('undefined')) return false;
+      if (img.includes('your-storage.com')) return false;
+      return true;
+    });
+
+    // Upload new image to ImgBB
+    const newImageUrl = await this.uploadToImgBB(file);
+
+    // Add new image to the cleaned images array
+    const updatedImagesList = [...cleanedImages, newImageUrl];
+
+    // Save updated field to the database
+    const updatedField = await this.prisma.field.update({
+      where: { id: fieldId },
+      data: {
+        images: updatedImagesList,
+      },
+    });
+
+    console.log(`Successfully updated Field ID: ${fieldId} with new image: ${newImageUrl}`);
+    console.log(`Current image count for Field ID ${fieldId}: ${updatedField.images.length}`);
+
+    return updatedField;
+  }
 
   // Barcha aktiv maydonlar — foydalanuvchilar uchun
   async findAll(city?: string) {
