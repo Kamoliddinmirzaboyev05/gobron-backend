@@ -11,6 +11,10 @@ export class RegisterDto {
   @IsString() 
   @MinLength(3) 
   login: string; 
+
+  @ApiProperty({ example: '+998901234567', description: 'Telefon raqami' })
+  @IsString()
+  phone: string;
  
   @ApiProperty({ example: '123456', description: 'Parol (kamida 6 ta belgi)' })
   @IsString() 

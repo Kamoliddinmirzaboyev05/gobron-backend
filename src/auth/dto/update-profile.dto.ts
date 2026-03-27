@@ -13,6 +13,11 @@ export class UpdateProfileDto {
   @MinLength(3)
   login?: string;
 
+  @ApiProperty({ example: '+998901234567', required: false })
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
   @ApiProperty({ example: 'newpassword123', required: false })
   @IsString()
   @IsOptional()

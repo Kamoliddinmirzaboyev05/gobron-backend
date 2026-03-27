@@ -45,6 +45,7 @@ generator client {
  id String @id @default(uuid()) 
  fullName String @map("full_name") 
  login String @unique 
+ phone String @unique 
  password String 
  role Role @default(user) 
  createdAt DateTime @default(now()) @map("created_at") 

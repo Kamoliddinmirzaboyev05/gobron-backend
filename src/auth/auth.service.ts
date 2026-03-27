@@ -22,19 +22,26 @@ import {
  
  async register(dto: RegisterDto) { 
  // Login band emasligini tekshirish 
- const existing = await this.prisma.user.findUnique({ 
+ const existingLogin = await (this.prisma as any).user.findUnique({ 
  where: { login: dto.login }, 
  }); 
- if (existing) throw new ConflictException('Bu login band'); 
+ if (existingLogin) throw new ConflictException('Bu login band'); 
+
+ // Telefon raqami band emasligini tekshirish
+ const existingPhone = await (this.prisma as any).user.findUnique({
+   where: { phone: dto.phone },
+ });
+ if (existingPhone) throw new ConflictException('Bu telefon raqami band');
  
  // Parolni hash qilish 
  const hashedPassword = await bcrypt.hash(dto.password, 10); 
  
  // User yaratish 
- const user = await this.prisma.user.create({ 
+ const user = await (this.prisma as any).user.create({ 
  data: { 
  fullName: dto.fullName, 
  login: dto.login, 
+ phone: dto.phone,
  password: hashedPassword, 
  role: dto.role, 
  }, 
@@ -42,7 +49,7 @@ import {
  
  // Agar admin bo'lsa — bo'sh maydon yaratish 
  if (dto.role === Role.admin) { 
- await this.prisma.field.create({ 
+ await (this.prisma as any).field.create({ 
  data: { 
  userId: user.id, 
  name: `${dto.fullName} ning maydoni`, 
@@ -58,6 +65,7 @@ import {
  id: user.id, 
  fullName: user.fullName, 
  login: user.login, 
+ phone: user.phone,
  role: user.role, 
  }, 
  ...tokens, 
@@ -65,9 +73,14 @@ import {
  } 
  
  async login(dto: LoginDto) { 
- // Userni topish 
- const user = await this.prisma.user.findUnique({ 
- where: { login: dto.login }, 
+ // Userni topish (login yoki telefon raqami orqali)
+ const user = await (this.prisma as any).user.findFirst({ 
+ where: {
+   OR: [
+     { login: dto.login },
+     { phone: dto.login }
+   ]
+ }, 
  include: { field: true }, 
  }); 
  if (!user) throw new UnauthorizedException('Login yoki parol noto\'g\'ri'); 
@@ -83,24 +96,25 @@ import {
  id: user.id, 
  fullName: user.fullName, 
  login: user.login, 
+ phone: user.phone,
  role: user.role, 
- field: user.field, 
+ field: (user as any).field, 
  }, 
  ...tokens, 
  }; 
  } 
  
  async getMe(userId: string) { 
-     return this.prisma.user.findUnique({ 
+     return (this.prisma as any).user.findUnique({ 
        where: { id: userId }, 
        select: { 
          id: true, 
          fullName: true, 
          login: true, 
+         phone: true,
          role: true, 
-         createdAt: true, 
-         field: true, 
-       }, 
+         createdAt: true,
+       } 
      }); 
    } 
  
@@ -108,23 +122,31 @@ import {
      const data: any = {};
      if (dto.fullName) data.fullName = dto.fullName;
      if (dto.login) {
-       const existing = await this.prisma.user.findFirst({
+       const existing = await (this.prisma as any).user.findFirst({
          where: { login: dto.login, NOT: { id: userId } },
        });
        if (existing) throw new ConflictException('Bu login band');
        data.login = dto.login;
      }
+     if (dto.phone) {
+       const existing = await (this.prisma as any).user.findFirst({
+         where: { phone: dto.phone, NOT: { id: userId } },
+       });
+       if (existing) throw new ConflictException('Bu telefon raqami band');
+       data.phone = dto.phone;
+     }
      if (dto.password) {
        data.password = await bcrypt.hash(dto.password, 10);
      }
  
-     return this.prisma.user.update({
+     return (this.prisma as any).user.update({
        where: { id: userId },
        data,
        select: {
          id: true,
          fullName: true,
          login: true,
+         phone: true,
          role: true,
        },
      });

@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, UseGuards, Put } from '@nestjs/common'; 
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service'; 
 import { RegisterDto } from './dto/register.dto'; 
  import { LoginDto } from './dto/login.dto'; 
@@ -14,14 +14,35 @@ export class AuthController {
  
   @Post('register') 
   @ApiOperation({ summary: 'Yangi foydalanuvchini ro\'yxatdan o\'tkazish' })
+  @ApiBody({
+    description: 'Ro\'yxatdan o\'tish ma\'lumotlari',
+    schema: {
+      example: {
+        fullName: "Jasur Toshmatov",
+        login: "jasur",
+        phone: "+998901234567",
+        password: "password123",
+        role: "user"
+      }
+    }
+  })
   @ApiResponse({ status: 201, description: 'Foydalanuvchi muvaffaqiyatli yaratildi' })
-  @ApiResponse({ status: 409, description: 'Login band' })
+  @ApiResponse({ status: 409, description: 'Login yoki telefon raqami band' })
   register(@Body() dto: RegisterDto) { 
     return this.authService.register(dto); 
   } 
  
   @Post('login') 
-  @ApiOperation({ summary: 'Tizimga kirish' })
+  @ApiOperation({ summary: 'Tizimga kirish (Login yoki telefon raqami orqali)' })
+  @ApiBody({
+    description: 'Kirish ma\'lumotlari (Login yoki telefon raqami)',
+    schema: {
+      example: {
+        login: "+998901234567",
+        password: "password123"
+      }
+    }
+  })
   @ApiResponse({ status: 200, description: 'Muvaffaqiyatli kirish, tokenlar qaytariladi' })
   @ApiResponse({ status: 401, description: 'Login yoki parol noto\'g\'ri' })
   login(@Body() dto: LoginDto) { 
