@@ -30,16 +30,25 @@ export class SlotsService {
       });
       if (!field) return;
 
-      const openHour = parseInt(field.openTime.split(':')[0]);
-      const closeHour = parseInt(field.closeTime.split(':')[0]);
+      const [openH, openM] = field.openTime.split(':').map(Number);
+      const [closeH, closeM] = field.closeTime.split(':').map(Number);
+
+      const openMinutes = openH * 60 + (openM || 0);
+      const closeMinutes = closeH * 60 + (closeM || 0);
+      const duration = (field as any).slotDuration || 60;
 
       const slots: Prisma.TimeSlotCreateManyInput[] = [];
-      for (let h = openHour; h < closeHour; h++) {
+      for (let m = openMinutes; m + duration <= closeMinutes; m += duration) {
+        const startH = Math.floor(m / 60);
+        const startM = m % 60;
+        const endH = Math.floor((m + duration) / 60);
+        const endM = (m + duration) % 60;
+
         slots.push({
           fieldId,
           slotDate: date,
-          startTime: `${String(h).padStart(2, '0')}:00`,
-          endTime: `${String(h + 1).padStart(2, '0')}:00`,
+          startTime: `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`,
+          endTime: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`,
           isAvailable: true,
         });
       }
@@ -75,11 +84,21 @@ export class SlotsService {
     endTime: string,
   ) {
     try {
-      const startHour = parseInt(startTime.split(':')[0]);
-      const endHour = parseInt(endTime.split(':')[0]);
+      const field = await this.prisma.field.findUnique({ where: { id: fieldId } });
+      if (!field) return;
 
-      for (let h = startHour; h < endHour; h++) {
-        const slotStart = `${String(h).padStart(2, '0')}:00`;
+      const [startH, startM] = startTime.split(':').map(Number);
+      const [endH, endM] = endTime.split(':').map(Number);
+      
+      const startMinutes = startH * 60 + (startM || 0);
+      const endMinutes = endH * 60 + (endM || 0);
+      const duration = (field as any).slotDuration || 60;
+
+      for (let m = startMinutes; m < endMinutes; m += duration) {
+        const h = Math.floor(m / 60);
+        const min = m % 60;
+        const slotStart = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+        
         await this.prisma.timeSlot.updateMany({
           where: { fieldId, slotDate: date, startTime: slotStart },
           data: { isAvailable: false },
@@ -98,11 +117,21 @@ export class SlotsService {
     endTime: string,
   ) {
     try {
-      const startHour = parseInt(startTime.split(':')[0]);
-      const endHour = parseInt(endTime.split(':')[0]);
+      const field = await this.prisma.field.findUnique({ where: { id: fieldId } });
+      if (!field) return;
 
-      for (let h = startHour; h < endHour; h++) {
-        const slotStart = `${String(h).padStart(2, '0')}:00`;
+      const [startH, startM] = startTime.split(':').map(Number);
+      const [endH, endM] = endTime.split(':').map(Number);
+      
+      const startMinutes = startH * 60 + (startM || 0);
+      const endMinutes = endH * 60 + (endM || 0);
+      const duration = (field as any).slotDuration || 60;
+
+      for (let m = startMinutes; m < endMinutes; m += duration) {
+        const h = Math.floor(m / 60);
+        const min = m % 60;
+        const slotStart = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+        
         await this.prisma.timeSlot.updateMany({
           where: { fieldId, slotDate: date, startTime: slotStart },
           data: { isAvailable: true },

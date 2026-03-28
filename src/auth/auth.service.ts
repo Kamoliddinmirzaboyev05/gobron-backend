@@ -52,9 +52,6 @@ import {
               isActive: false,
             }
           } : undefined
-        },
-        include: {
-          field: true
         }
       }); 
       
@@ -66,8 +63,7 @@ import {
           fullName: user.fullName, 
           login: user.login, 
           phone: user.phone,
-          role: user.role,
-          field: user.field
+          role: user.role
         }, 
         ...tokens, 
       }; 
@@ -86,8 +82,7 @@ import {
             { login: dto.login },
             { phone: dto.login }
           ]
-        }, 
-        include: { field: true }, 
+        }
       }); 
       if (!user) throw new UnauthorizedException('Login yoki parol noto\'g\'ri'); 
       
@@ -103,8 +98,7 @@ import {
           fullName: user.fullName, 
           login: user.login, 
           phone: user.phone,
-          role: user.role, 
-          field: user.field, 
+          role: user.role
         }, 
         ...tokens, 
       }; 
@@ -124,7 +118,6 @@ import {
          phone: true,
          role: true, 
          createdAt: true,
-         field: true
        } 
      }); 
    } 
