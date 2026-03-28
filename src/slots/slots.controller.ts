@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { SlotsService } from './slots.service';
@@ -13,15 +14,24 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
+import { GenerateSlotsDto } from './dto/generate-slots.dto';
+import { GenerateSlotsBatchDto } from './dto/generate-slots-batch.dto';
+import { MarkSlotDto } from './dto/mark-slot.dto';
+import { SlotResponseDto } from './dto/slot-response.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('Slots')
 @Controller('slots')
 export class SlotsController {
-  constructor(private slotsService: SlotsService) {}
+  constructor(
+    private slotsService: SlotsService,
+    private prisma: PrismaService,
+  ) {}
 
   // Public: maydon slotlari
   @Get('field/:fieldId/date/:date')
   @ApiOperation({ summary: 'Maydonning bo\'sh vaqtlarini olish' })
+  @ApiResponse({ status: 200, type: [SlotResponseDto], description: 'Sana bo\'yicha slotlar ro\'yxati' })
   getSlots(@Param('fieldId') fieldId: string, @Param('date') date: string) {
     return this.slotsService.getSlots(fieldId, date);
   }
@@ -32,19 +42,15 @@ export class SlotsController {
   @Roles(Role.admin, Role.superadmin)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin maydon uchun slotlarni yaratish (kunlik)' })
-  @ApiBody({
-    description: 'Bir kunlik slotlarni yaratish',
-    schema: {
-      example: {
-        date: "2026-04-15"
-      }
-    }
-  })
-  generateSlotsForField(
+  @ApiResponse({ status: 201, description: 'Slotlar muvaffaqiyatli yaratildi' })
+  async generateSlotsForField(
     @CurrentUser('id') userId: string,
-    @Body() body: { date: string },
+    @Body() body: GenerateSlotsDto,
   ) {
-    return this.slotsService.generateSlotsForField(userId, new Date(body.date));
+    const field = await this.prisma.field.findFirst({ where: { userId } });
+    if (!field) throw new NotFoundException('Maydon topilmadi');
+    
+    return this.slotsService.generateSlotsForField(field.id, new Date(body.date));
   }
 
   // Admin: slotlarni yaratish (ko'p kunlik)
@@ -53,19 +59,15 @@ export class SlotsController {
   @Roles(Role.admin, Role.superadmin)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin maydon uchun slotlarni yaratish (ko\'p kunlik)' })
-  @ApiBody({
-    description: 'Ko\'p kunlik slotlarni yaratish (masalan keyingi 30 kun uchun)',
-    schema: {
-      example: {
-        days: 30
-      }
-    }
-  })
-  generateSlotsForDays(
+  @ApiResponse({ status: 201, description: 'Ko\'p kunlik slotlar muvaffaqiyatli yaratildi' })
+  async generateSlotsForDays(
     @CurrentUser('id') userId: string,
-    @Body() body: { days: number },
+    @Body() body: GenerateSlotsBatchDto,
   ) {
-    return this.slotsService.generateSlotsForDays(userId, body.days);
+    const field = await this.prisma.field.findFirst({ where: { userId } });
+    if (!field) throw new NotFoundException('Maydon topilmadi');
+
+    return this.slotsService.generateSlotsForDays(field.id, body.days);
   }
 
   // Admin: slotni band qilish
@@ -74,19 +76,10 @@ export class SlotsController {
   @Roles(Role.admin, Role.superadmin)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin slotni band qilish' })
-  @ApiBody({
-    description: 'Slotni band qilish',
-    schema: {
-      example: {
-        date: "2026-04-15",
-        startTime: "18:00",
-        endTime: "19:00"
-      }
-    }
-  })
+  @ApiResponse({ status: 201, description: 'Slot muvaffaqiyatli band qilindi' })
   markUnavailable(
     @Param('fieldId') fieldId: string,
-    @Body() body: { date: string; startTime: string; endTime: string },
+    @Body() body: MarkSlotDto,
   ) {
     return this.slotsService.markUnavailable(
       fieldId,
@@ -102,19 +95,10 @@ export class SlotsController {
   @Roles(Role.admin, Role.superadmin)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin slotni bo\'shatish' })
-  @ApiBody({
-    description: 'Slotni bo\'shatish',
-    schema: {
-      example: {
-        date: "2026-04-15",
-        startTime: "18:00",
-        endTime: "19:00"
-      }
-    }
-  })
+  @ApiResponse({ status: 201, description: 'Slot muvaffaqiyatli bo\'shatildi' })
   markAvailable(
     @Param('fieldId') fieldId: string,
-    @Body() body: { date: string; startTime: string; endTime: string },
+    @Body() body: MarkSlotDto,
   ) {
     return this.slotsService.markAvailable(
       fieldId,

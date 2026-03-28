@@ -23,6 +23,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
+import { SlotResponseDto } from '../slots/dto/slot-response.dto';
 
 @ApiTags('Fields')
 @Controller('fields')
@@ -60,6 +61,7 @@ export class FieldsController {
   // Public: maydon slotlari
   @Get(':id/slots')
   @ApiOperation({ summary: 'Maydonning bo\'sh vaqtlarini olish' })
+  @ApiResponse({ status: 200, type: [SlotResponseDto], description: 'Sana bo\'yicha slotlar ro\'yxati' })
   getSlots(@Param('id') fieldId: string, @Query('date') date: string) {
     return this.fieldsService.getSlots(fieldId, date);
   }
