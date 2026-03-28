@@ -198,4 +198,42 @@ export class FieldsService {
       orderBy: { startTime: 'asc' },
     });
   }
+
+  /**
+   * Deletes a specific image from the field's images array
+   * @param fieldId - The ID of the field
+   * @param imageUrl - The URL of the image to remove
+   * @returns Promise<Field> - The updated field object
+   */
+  async deleteImage(fieldId: string, imageUrl: string) {
+    if (!fieldId) throw new BadRequestException('Field ID is required');
+    if (!imageUrl) throw new BadRequestException('Image URL is required');
+
+    console.log(`Starting image deletion for Field ID: ${fieldId}, URL: ${imageUrl}`);
+
+    const field = await this.prisma.field.findUnique({
+      where: { id: fieldId },
+    });
+
+    if (!field) {
+      throw new NotFoundException(`Field with ID ${fieldId} not found`);
+    }
+
+    const currentImages = field.images || [];
+    const updatedImages = currentImages.filter((img) => img !== imageUrl);
+
+    if (currentImages.length === updatedImages.length) {
+      throw new BadRequestException('Image URL not found in field images');
+    }
+
+    const updatedField = await this.prisma.field.update({
+      where: { id: fieldId },
+      data: {
+        images: updatedImages,
+      },
+    });
+
+    console.log(`Successfully deleted image from Field ID: ${fieldId}. Current count: ${updatedField.images.length}`);
+    return updatedField;
+  }
 }

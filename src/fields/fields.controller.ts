@@ -11,6 +11,7 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -124,6 +125,45 @@ export class FieldsController {
       };
     } catch (error) {
       console.error('Rasm yuklashda xato:', error);
+      throw error;
+    }
+  }
+
+  // Admin: maydon rasmini o'chirish
+  @Delete('admin/my/image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin, Role.superadmin)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin maydon rasmini o\'chirishi' })
+  @ApiBody({
+    description: 'Admin maydon rasmini o\'chirishi uchun rasm URLini yuboring',
+    schema: {
+      type: 'object',
+      properties: {
+        imageUrl: {
+          type: 'string',
+          example: 'https://i.ibb.co/example/image.jpg',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Rasm muvaffaqiyatli o\'chirildi' })
+  @ApiResponse({ status: 400, description: 'Rasm URLi topilmadi yoki xato' })
+  @ApiResponse({ status: 404, description: 'Maydon topilmadi' })
+  async deleteImage(@CurrentUser('id') userId: string, @Body('imageUrl') imageUrl: string) {
+    try {
+      if (!imageUrl) {
+        throw new BadRequestException('Image URL is required');
+      }
+      const field = await this.fieldsService.findMyField(userId);
+      const updatedField = await this.fieldsService.deleteImage(field.id, imageUrl);
+      return {
+        success: true,
+        message: 'Rasm muvaffaqiyatli o\'chirildi',
+        data: updatedField
+      };
+    } catch (error) {
+      console.error('Rasm o\'chirishda xato:', error);
       throw error;
     }
   }

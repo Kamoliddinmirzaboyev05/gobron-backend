@@ -75,6 +75,7 @@ generator client {
  images String[] 
  openTime String @default("08:00") @map("open_time") 
  closeTime String @default("23:00") @map("close_time") 
+ slotDuration Int @default(60) @map("slot_duration")
  phone String? 
  isActive Boolean @default(false) @map("is_active") 
  rating Float @default(0) 
@@ -127,6 +128,7 @@ generator client {
  isAvailable Boolean  @default(true) @map("is_available") 
  
  field Field @relation(fields: [fieldId], references: [id], onDelete: Cascade) 
+ booking Booking? 
  
  @@unique([fieldId, slotDate, startTime]) 
  @@map("time_slots") 
@@ -134,22 +136,26 @@ generator client {
  
  model Booking { 
  id String @id @default(uuid()) 
- userId String @map("user_id") 
+ userId String? @map("user_id") 
  fieldId String @map("field_id") 
+ timeSlotId String? @unique @map("time_slot_id")
  bookingDate DateTime @map("booking_date") @db.Date 
  startTime String @map("start_time") 
  endTime String @map("end_time") 
  totalPrice Int @map("total_price") 
  status BookingStatus @default(pending) 
  paymentMethod PaymentMethod @default(cash) @map("payment_method") 
+ clientName String? @map("client_name")
+ clientPhone String? @map("client_phone")
  note String? 
  createdAt DateTime @default(now()) @map("created_at") 
  confirmedAt DateTime? @map("confirmed_at") 
  rejectedAt DateTime? @map("rejected_at") 
  rejectReason String? @map("reject_reason") 
  
- user User @relation(fields: [userId], references: [id]) 
+ user User? @relation(fields: [userId], references: [id]) 
  field Field @relation(fields: [fieldId], references: [id]) 
+ timeSlot TimeSlot? @relation(fields: [timeSlotId], references: [id], onDelete: SetNull)
  notifications Notification[] 
  
  @@map("bookings") 
