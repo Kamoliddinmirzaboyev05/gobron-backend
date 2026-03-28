@@ -22,6 +22,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    // Ignore noise from sw.js (Service Worker) 404 errors
+    if (status === HttpStatus.NOT_FOUND && request.url.includes('sw.js')) {
+      return response.status(status).json({
+        statusCode: status,
+        message: 'Service Worker not found',
+      });
+    }
+
     const isProduction = process.env.NODE_ENV === 'production';
 
     // Extract error response

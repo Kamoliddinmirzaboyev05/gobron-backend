@@ -23,13 +23,13 @@ import {
  async register(dto: RegisterDto) { 
     try {
       // Login band emasligini tekshirish 
-      const existingLogin = await (this.prisma as any).user.findUnique({ 
+      const existingLogin = await this.prisma.user.findUnique({ 
         where: { login: dto.login }, 
       }); 
       if (existingLogin) throw new ConflictException('Bu login band'); 
 
       // Telefon raqami band emasligini tekshirish
-      const existingPhone = await (this.prisma as any).user.findUnique({
+      const existingPhone = await this.prisma.user.findUnique({
         where: { phone: dto.phone },
       });
       if (existingPhone) throw new ConflictException('Bu telefon raqami band');
@@ -37,27 +37,26 @@ import {
       // Parolni hash qilish 
       const hashedPassword = await bcrypt.hash(dto.password, 10); 
       
-      // User yaratish 
-      const user = await (this.prisma as any).user.create({ 
+      // User yaratish (Admin bo'lsa avtomatik Field relation bilan birga)
+      const user = await this.prisma.user.create({ 
         data: { 
           fullName: dto.fullName, 
           login: dto.login, 
           phone: dto.phone,
           password: hashedPassword, 
           role: dto.role, 
-        }, 
+          // Admin bo'lsa nested create orqali Field yaratish
+          field: dto.role === Role.admin ? {
+            create: {
+              name: `${dto.fullName} ning maydoni`,
+              isActive: false,
+            }
+          } : undefined
+        },
+        include: {
+          field: true
+        }
       }); 
-      
-      // Agar admin bo'lsa — bo'sh maydon yaratish 
-      if (dto.role === Role.admin) { 
-        await (this.prisma as any).field.create({ 
-          data: { 
-            userId: user.id, 
-            name: `${dto.fullName} ning maydoni`, 
-            isActive: false, 
-          }, 
-        }); 
-      } 
       
       const tokens = this.generateTokens(user.id); 
       
@@ -67,7 +66,8 @@ import {
           fullName: user.fullName, 
           login: user.login, 
           phone: user.phone,
-          role: user.role, 
+          role: user.role,
+          field: user.field
         }, 
         ...tokens, 
       }; 
@@ -80,7 +80,7 @@ import {
    async login(dto: LoginDto) { 
     try {
       // Userni topish (login yoki telefon raqami orqali)
-      const user = await (this.prisma as any).user.findFirst({ 
+      const user = await this.prisma.user.findFirst({ 
         where: {
           OR: [
             { login: dto.login },
@@ -104,7 +104,7 @@ import {
           login: user.login, 
           phone: user.phone,
           role: user.role, 
-          field: (user as any).field, 
+          field: user.field, 
         }, 
         ...tokens, 
       }; 
@@ -115,7 +115,7 @@ import {
    } 
  
  async getMe(userId: string) { 
-     return (this.prisma as any).user.findUnique({ 
+     return this.prisma.user.findUnique({ 
        where: { id: userId }, 
        select: { 
          id: true, 
@@ -124,6 +124,7 @@ import {
          phone: true,
          role: true, 
          createdAt: true,
+         field: true
        } 
      }); 
    } 
@@ -132,14 +133,14 @@ import {
      const data: any = {};
      if (dto.fullName) data.fullName = dto.fullName;
      if (dto.login) {
-       const existing = await (this.prisma as any).user.findFirst({
+       const existing = await this.prisma.user.findFirst({
          where: { login: dto.login, NOT: { id: userId } },
        });
        if (existing) throw new ConflictException('Bu login band');
        data.login = dto.login;
      }
      if (dto.phone) {
-       const existing = await (this.prisma as any).user.findFirst({
+       const existing = await this.prisma.user.findFirst({
          where: { phone: dto.phone, NOT: { id: userId } },
        });
        if (existing) throw new ConflictException('Bu telefon raqami band');
@@ -149,7 +150,7 @@ import {
        data.password = await bcrypt.hash(dto.password, 10);
      }
  
-     return (this.prisma as any).user.update({
+     return this.prisma.user.update({
        where: { id: userId },
        data,
        select: {
