@@ -11,7 +11,6 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { SlotsService } from '../slots/slots.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
-import { BookingStatus } from '@prisma/client';
 
 @Injectable()
 export class BookingsService {
@@ -29,7 +28,7 @@ export class BookingsService {
     date.setHours(0, 0, 0, 0);
 
     // Maydonni tekshirish
-    const field = await this.prisma.field.findUnique({
+    const field = await (this.prisma as any).field.findUnique({
       where: { id: dto.fieldId },
     });
     if (!field) throw new NotFoundException('Maydon topilmadi');
@@ -38,7 +37,7 @@ export class BookingsService {
     const isAdminBooking = field.userId === userId;
 
     // Slot band emasligini tekshirish
-    const conflict = await this.prisma.booking.findFirst({
+    const conflict = await (this.prisma as any).booking.findFirst({
       where: {
         fieldId: dto.fieldId,
         bookingDate: date,
@@ -48,7 +47,7 @@ export class BookingsService {
     });
     if (conflict) throw new BadRequestException('Bu vaqt allaqachon band');
 
-    const booking = await this.prisma.booking.create({
+    const booking = await (this.prisma as any).booking.create({
       data: {
         userId: isAdminBooking ? null : userId,
         fieldId: dto.fieldId,
@@ -124,7 +123,7 @@ export class BookingsService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return this.prisma.booking.findMany({
+    return (this.prisma as any).booking.findMany({
       where: {
         userId,
         bookingDate: { gte: today },
@@ -140,7 +139,7 @@ export class BookingsService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return this.prisma.booking.findMany({
+    return (this.prisma as any).booking.findMany({
       where: {
         userId,
         OR: [
@@ -158,7 +157,7 @@ export class BookingsService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return this.prisma.booking.findMany({
+    return (this.prisma as any).booking.findMany({
       where: {
         userId,
         bookingDate: today,
@@ -169,11 +168,11 @@ export class BookingsService {
   }
 
   // Admin o'z maydon bookinglarini ko'radi
-  async getAdminBookings(userId: string, status?: BookingStatus) {
-    const field = await this.prisma.field.findUnique({ where: { userId } });
+  async getAdminBookings(userId: string, status?: string) {
+    const field = await (this.prisma as any).field.findUnique({ where: { userId } });
     if (!field) throw new NotFoundException('Maydon topilmadi');
 
-    return this.prisma.booking.findMany({
+    return (this.prisma as any).booking.findMany({
       where: {
         fieldId: field.id,
         ...(status && { status }),
@@ -184,8 +183,8 @@ export class BookingsService {
   }
 
   // Superadmin barcha bookinglarni ko'radi
-  async getAllBookings(status?: BookingStatus) {
-    return this.prisma.booking.findMany({
+  async getAllBookings(status?: string) {
+    return (this.prisma as any).booking.findMany({
       where: { ...(status && { status }) },
       include: { user: true, field: true },
       orderBy: { createdAt: 'desc' },
@@ -198,7 +197,7 @@ export class BookingsService {
     adminUserId: string,
     dto: UpdateBookingStatusDto,
   ) {
-    const booking = await this.prisma.booking.findUnique({
+    const booking = await (this.prisma as any).booking.findUnique({
       where: { id: bookingId },
       include: {
         field: { include: { user: true } },
@@ -216,7 +215,7 @@ export class BookingsService {
       );
     }
 
-    const updated = await this.prisma.booking.update({
+    const updated = await (this.prisma as any).booking.update({
       where: { id: bookingId },
       data: {
         status: dto.status,
@@ -283,7 +282,7 @@ export class BookingsService {
 
   // Foydalanuvchi bekor qiladi
   async cancel(bookingId: string, userId: string) {
-    const booking = await this.prisma.booking.findUnique({
+    const booking = await (this.prisma as any).booking.findUnique({
       where: { id: bookingId },
     });
     if (!booking) throw new NotFoundException('Booking topilmadi');
@@ -292,7 +291,7 @@ export class BookingsService {
       throw new BadRequestException("Bu bookingni bekor qilib bo'lmaydi");
     }
 
-    const updated = await this.prisma.booking.update({
+    const updated = await (this.prisma as any).booking.update({
       where: { id: bookingId },
       data: { status: 'cancelled' },
     });

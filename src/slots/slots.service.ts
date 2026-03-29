@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, BookingStatus } from '@prisma/client';
 import * as dayjs from 'dayjs';
 import * as utc from 'dayjs/plugin/utc';
 import * as timezone from 'dayjs/plugin/timezone';
@@ -23,7 +22,7 @@ export class SlotsService {
   async bookSlot(userId: string, dto: BookSlotDto) {
     try {
       // 1. Slotni topish
-      const slot = await this.prisma.timeSlot.findUnique({
+      const slot = await (this.prisma as any).timeSlot.findUnique({
         where: { id: dto.slotId },
         include: { field: true },
       });
@@ -46,7 +45,7 @@ export class SlotsService {
       // Narxni hisoblash (1 soat deb hisoblaymiz, chunki slotlar soatlik)
       const totalPrice = slot.field.pricePerHour;
 
-      const booking = await this.prisma.booking.create({
+      const booking = await (this.prisma as any).booking.create({
         data: {
           userId,
           fieldId,
@@ -55,12 +54,12 @@ export class SlotsService {
           startTime,
           endTime,
           totalPrice,
-          status: BookingStatus.confirmed, // Foydalanuvchi so'raganidek confirmed
+          status: 'confirmed', // Foydalanuvchi so'raganidek confirmed
         } as any,
       });
 
       // 3. Slotni band qilingan deb belgilash
-      await this.prisma.timeSlot.update({
+      await (this.prisma as any).timeSlot.update({
         where: { id: slot.id },
         data: { isAvailable: false },
       });
@@ -112,7 +111,7 @@ export class SlotsService {
         }
       }
 
-      const field = await this.prisma.field.findUnique({ where: { id: fieldId } });
+      const field = await (this.prisma as any).field.findUnique({ where: { id: fieldId } });
       if (!field) throw new Error('Maydon topilmadi');
 
       // Slotlarni generatsiya qilish (agar bazada bo'lmasa)
@@ -123,7 +122,7 @@ export class SlotsService {
       }
 
       // Barcha so'ralgan kunlar uchun slotlarni bazadan olamiz
-      const allSlots = await this.prisma.timeSlot.findMany({
+      const allSlots = await (this.prisma as any).timeSlot.findMany({
         where: {
           fieldId,
           slotDate: {
@@ -147,14 +146,14 @@ export class SlotsService {
 
         // DB dan kelgan slotlarni ushbu kunga tegishli ekanligini tekshiramiz
         // Prisma @db.Date ni UTC midnight Date qilib qaytaradi
-        let daySlots = allSlots.filter((s) => {
+        let daySlots = allSlots.filter((s: any) => {
           const sDateStr = dayjs.utc(s.slotDate).format('YYYY-MM-DD');
           return sDateStr === dateStr;
         });
 
         // Bugun uchun faqat hozirgi vaqtdan keyingi slotlarni ko'rsatamiz
         if (isToday) {
-          daySlots = daySlots.filter((s) => {
+          daySlots = daySlots.filter((s: any) => {
             const [h, m] = s.startTime.split(':').map(Number);
             // Slot boshlanish vaqti (Uzbekistan vaqti bilan)
             const slotStartTime = d.hour(h).minute(m).second(0);
@@ -165,7 +164,7 @@ export class SlotsService {
         return {
           date: dateStr,
           dayLabel: label,
-          slots: daySlots.map((s) => ({
+          slots: daySlots.map((s: any) => ({
             id: s.id,
             startTime: s.startTime,
             endTime: s.endTime,
@@ -175,7 +174,7 @@ export class SlotsService {
       });
 
       return { dates: resultDates };
-    } catch (error) {
+    } catch (error: any) {
       console.error('getSlots error:', error.message);
       throw error;
     }
@@ -186,7 +185,7 @@ export class SlotsService {
    */
   async generateSlotsForField(fieldId: string, date: Date) {
     try {
-      const field = await this.prisma.field.findUnique({
+      const field = await (this.prisma as any).field.findUnique({
         where: { id: fieldId },
       });
       if (!field) return;
@@ -195,7 +194,7 @@ export class SlotsService {
       const slotDate = date;
 
       // Agar bu kun uchun slotlar allaqachon mavjud bo'lsa, qaytamiz
-      const existingCount = await this.prisma.timeSlot.count({
+      const existingCount = await (this.prisma as any).timeSlot.count({
         where: { fieldId, slotDate },
       });
       if (existingCount > 0) return;
@@ -207,7 +206,7 @@ export class SlotsService {
       const closeMinutes = closeH * 60 + (closeM || 0);
       const duration = (field as any).slotDuration || 60;
 
-      const slots: Prisma.TimeSlotCreateManyInput[] = [];
+      const slots: any[] = [];
       
       for (let m = openMinutes; m + duration <= closeMinutes; m += duration) {
         const startH = Math.floor(m / 60);
@@ -228,12 +227,12 @@ export class SlotsService {
       }
 
       if (slots.length > 0) {
-        await this.prisma.timeSlot.createMany({
+        await (this.prisma as any).timeSlot.createMany({
           data: slots,
           skipDuplicates: true,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('generateSlotsForField error:', error.message);
     }
   }
@@ -259,7 +258,7 @@ export class SlotsService {
     endTime: string,
   ) {
     try {
-      const field = await this.prisma.field.findUnique({ where: { id: fieldId } });
+      const field = await (this.prisma as any).field.findUnique({ where: { id: fieldId } });
       if (!field) return;
 
       // Sanani normalizatsiya qilish (UTC midnight)
@@ -278,12 +277,12 @@ export class SlotsService {
         const min = m % 60;
         const slotStart = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
         
-        await this.prisma.timeSlot.updateMany({
+        await (this.prisma as any).timeSlot.updateMany({
           where: { fieldId, slotDate: normalizedDate, startTime: slotStart },
           data: { isAvailable: false },
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in markUnavailable:', error);
       throw error;
     }
@@ -296,7 +295,7 @@ export class SlotsService {
     endTime: string,
   ) {
     try {
-      const field = await this.prisma.field.findUnique({ where: { id: fieldId } });
+      const field = await (this.prisma as any).field.findUnique({ where: { id: fieldId } });
       if (!field) return;
 
       // Sanani normalizatsiya qilish (UTC midnight)
@@ -315,12 +314,12 @@ export class SlotsService {
         const min = m % 60;
         const slotStart = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
         
-        await this.prisma.timeSlot.updateMany({
+        await (this.prisma as any).timeSlot.updateMany({
           where: { fieldId, slotDate: normalizedDate, startTime: slotStart },
           data: { isAvailable: true },
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in markAvailable:', error);
       throw error;
     }
