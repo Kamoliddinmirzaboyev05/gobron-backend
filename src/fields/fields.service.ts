@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UpdateFieldDto } from './dto/update-field.dto';
 import { SearchFieldsDto } from './dto/search-fields.dto';
 import axios from 'axios';
-import * as FormData from 'form-data';
+import FormData from 'form-data';
 
 @Injectable()
 export class FieldsService {
@@ -39,7 +39,7 @@ export class FieldsService {
       where.amenities = { hasEvery: amenities };
     }
 
-    return (this.prisma.field as any).findMany({
+    return (this.prisma as any).field.findMany({
       where,
       orderBy: [
         { rating: 'desc' },
@@ -100,7 +100,7 @@ export class FieldsService {
     console.log(`Starting image upload process for Field ID: ${fieldId}`);
 
     // Find the field in the database
-    const field = await this.prisma.field.findUnique({
+    const field = await (this.prisma as any).field.findUnique({
       where: { id: fieldId },
     });
 
@@ -124,7 +124,7 @@ export class FieldsService {
     const updatedImagesList = [...cleanedImages, newImageUrl];
 
     // Save updated field to the database
-    const updatedField = await this.prisma.field.update({
+    const updatedField = await (this.prisma as any).field.update({
       where: { id: fieldId },
       data: {
         images: updatedImagesList,
@@ -143,7 +143,7 @@ export class FieldsService {
     if (city) {
       where.city = city;
     }
-    return this.prisma.field.findMany({
+    return (this.prisma as any).field.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     });
@@ -151,7 +151,7 @@ export class FieldsService {
 
   // Ommabop maydonlar (rating va reviewCount bo'yicha)
   async getPopular() {
-    return this.prisma.field.findMany({
+    return (this.prisma as any).field.findMany({
       where: { isActive: true },
       orderBy: [
         { rating: 'desc' },
@@ -163,7 +163,7 @@ export class FieldsService {
 
   // Tavsiya etilgan maydonlar (yangi va yuqori ratingli)
   async getRecommended() {
-    return this.prisma.field.findMany({
+    return (this.prisma as any).field.findMany({
       where: { isActive: true },
       orderBy: [
         { createdAt: 'desc' },
@@ -185,7 +185,7 @@ export class FieldsService {
       next7Days.push(d);
     }
 
-    const slots = await this.prisma.timeSlot.findMany({
+    const slots = await (this.prisma as any).timeSlot.findMany({
       where: {
         fieldId,
         slotDate: { in: next7Days },
@@ -194,8 +194,8 @@ export class FieldsService {
 
     return next7Days.map(date => {
       const dateStr = date.toISOString().split('T')[0];
-      const daySlots = slots.filter(s => s.slotDate.toISOString().split('T')[0] === dateStr);
-      const availableCount = daySlots.filter(s => s.isAvailable).length;
+      const daySlots = slots.filter((s: any) => s.slotDate.toISOString().split('T')[0] === dateStr);
+      const availableCount = daySlots.filter((s: any) => s.isAvailable).length;
       const totalCount = daySlots.length;
 
       return {
@@ -209,7 +209,7 @@ export class FieldsService {
 
   // Bitta maydon — public
   async findOne(id: string) {
-    const field = await this.prisma.field.findUnique({
+    const field = await (this.prisma as any).field.findUnique({
       where: { id },
     });
     if (!field) throw new NotFoundException('Maydon topilmadi');
@@ -218,7 +218,7 @@ export class FieldsService {
 
   // Admin o'z maydonini ko'radi
   async findMyField(userId: string) {
-    const field = await this.prisma.field.findFirst({
+    const field = await (this.prisma as any).field.findFirst({
       where: { userId },
     });
     if (!field) throw new NotFoundException('Maydon topilmadi');
@@ -227,12 +227,12 @@ export class FieldsService {
 
   // Admin o'z maydonini yangilaydi
   async update(userId: string, dto: UpdateFieldDto) {
-    const field = await this.prisma.field.findFirst({
+    const field = await (this.prisma as any).field.findFirst({
       where: { userId },
     });
     if (!field) throw new NotFoundException('Maydon topilmadi');
 
-    return this.prisma.field.update({
+    return (this.prisma as any).field.update({
       where: { id: field.id },
       data: dto,
     });
@@ -240,7 +240,7 @@ export class FieldsService {
 
   // Superadmin — barcha maydonlar (aktiv + nofaol)
   async findAllAdmin() {
-    return this.prisma.field.findMany({
+    return (this.prisma as any).field.findMany({
       include: { user: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -258,7 +258,7 @@ export class FieldsService {
 
     console.log(`Starting image deletion for Field ID: ${fieldId}, URL: ${imageUrl}`);
 
-    const field = await this.prisma.field.findUnique({
+    const field = await (this.prisma as any).field.findUnique({
       where: { id: fieldId },
     });
 
@@ -273,7 +273,7 @@ export class FieldsService {
       throw new BadRequestException('Image URL not found in field images');
     }
 
-    const updatedField = await this.prisma.field.update({
+    const updatedField = await (this.prisma as any).field.update({
       where: { id: fieldId },
       data: {
         images: updatedImages,
