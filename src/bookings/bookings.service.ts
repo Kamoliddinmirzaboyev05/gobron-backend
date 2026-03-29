@@ -23,9 +23,19 @@ export class BookingsService {
     private slots: SlotsService,
   ) {}
 
-  // Foydalanuvchi booking yaratadi
+  // Foydalanuvchi yoki Admin booking yaratadi
   async create(userId: string, dto: CreateBookingDto) {
     const date = new Date(dto.bookingDate);
+    date.setHours(0, 0, 0, 0);
+
+    // Maydonni tekshirish
+    const field = await this.prisma.field.findUnique({
+      where: { id: dto.fieldId },
+    });
+    if (!field) throw new NotFoundException('Maydon topilmadi');
+
+    // Admin (maydon egasi) o'zi uchun band qilayotganini tekshirish
+    const isAdminBooking = field.userId === userId;
 
     // Slot band emasligini tekshirish
     const conflict = await this.prisma.booking.findFirst({
@@ -40,59 +50,121 @@ export class BookingsService {
 
     const booking = await this.prisma.booking.create({
       data: {
-        userId,
+        userId: isAdminBooking ? null : userId,
         fieldId: dto.fieldId,
+        timeSlotId: dto.timeSlotId,
         bookingDate: date,
         startTime: dto.startTime,
         endTime: dto.endTime,
         totalPrice: dto.totalPrice,
         note: dto.note,
-      },
+        clientName: dto.clientName,
+        clientPhone: dto.clientPhone,
+        status: isAdminBooking ? 'confirmed' : 'pending',
+      } as any,
       include: {
         user: true,
         field: { include: { user: true } },
       },
     });
 
-    // Admin ga Socket.io xabar (AppGateway)
-    this.gateway.emitNewBooking(booking.field.userId, {
-      id: booking.id,
-      userName: booking.user.fullName,
-      userPhone: '', // User modelida phone yo'q
-      fieldName: booking.field.name,
-      bookingDate: dto.bookingDate,
-      startTime: dto.startTime,
-      endTime: dto.endTime,
-      totalPrice: dto.totalPrice,
-      status: 'pending',
-      createdAt: booking.createdAt,
-    });
+    // Agar admin band qilgan bo'lsa — slotni darhol band qilish
+    if (isAdminBooking) {
+      await this.slots.markUnavailable(
+        booking.fieldId,
+        booking.bookingDate,
+        booking.startTime,
+        booking.endTime,
+      );
+      this.gateway.emitSlotUpdated(booking.fieldId, {
+        fieldId: booking.fieldId,
+        date: booking.bookingDate,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        isAvailable: false,
+      });
+    } else {
+      const b = booking as any;
+      // Normal foydalanuvchi — Admin ga Socket.io xabar (AppGateway)
+      this.gateway.emitNewBooking(b.field.userId, {
+        id: b.id,
+        userName: b.user?.fullName || dto.clientName || 'Mehmon',
+        userPhone: b.user?.phone || dto.clientPhone || '',
+        fieldName: b.field.name,
+        bookingDate: dto.bookingDate,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        totalPrice: dto.totalPrice,
+        status: 'pending',
+        createdAt: b.createdAt,
+      });
 
-    // Admin ga Socket.io xabar (BookingsGateway)
-    this.bookingsGateway.sendNewBooking(booking.field.userId, {
-      id: booking.id,
-      userName: booking.user.fullName,
-      fieldName: booking.field.name,
-      bookingDate: dto.bookingDate,
-      startTime: dto.startTime,
-      endTime: dto.endTime,
-      totalPrice: dto.totalPrice,
-      status: 'pending',
-      createdAt: booking.createdAt,
-    });
+      // Admin ga Socket.io xabar (BookingsGateway)
+      this.bookingsGateway.sendNewBooking(b.field.userId, {
+        id: b.id,
+        userName: b.user?.fullName || dto.clientName || 'Mehmon',
+        fieldName: b.field.name,
+        bookingDate: dto.bookingDate,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        totalPrice: dto.totalPrice,
+        status: 'pending',
+        createdAt: b.createdAt,
+      });
 
-    // Admin ga Telegram xabar
-    await this.notifications.notifyAdminNewBooking(booking);
+      // Admin ga Telegram xabar
+      await this.notifications.notifyAdminNewBooking(b);
+    }
 
     return booking;
   }
 
-  // Foydalanuvchi o'z bookinglarini ko'radi
-  async getMyBookings(userId: string) {
+  // Foydalanuvchi kelgusi bookinglari
+  async getUpcoming(userId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     return this.prisma.booking.findMany({
-      where: { userId },
+      where: {
+        userId,
+        bookingDate: { gte: today },
+        status: { in: ['pending', 'confirmed'] },
+      },
       include: { field: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { bookingDate: 'asc' },
+    });
+  }
+
+  // Foydalanuvchi o'tgan bookinglari (history)
+  async getHistory(userId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return this.prisma.booking.findMany({
+      where: {
+        userId,
+        OR: [
+          { bookingDate: { lt: today } },
+          { status: { in: ['cancelled', 'rejected', 'completed'] } },
+        ],
+      },
+      include: { field: true },
+      orderBy: { bookingDate: 'desc' },
+    });
+  }
+
+  // Foydalanuvchi faol bookinglari (bugun va hali tugamagan)
+  async getActive(userId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return this.prisma.booking.findMany({
+      where: {
+        userId,
+        bookingDate: today,
+        status: 'confirmed',
+      },
+      include: { field: true },
     });
   }
 

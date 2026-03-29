@@ -25,21 +25,23 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nes
 export class BookingsController {
   constructor(private bookingsService: BookingsService) {}
 
-  // User: booking yaratish
+  // User yoki Admin: booking yaratish
   @Post()
-  @Roles(Role.user)
+  @Roles(Role.user, Role.admin, Role.superadmin)
   @UseGuards(RolesGuard)
-  @ApiOperation({ summary: 'Yangi booking yaratish' })
+  @ApiOperation({ summary: 'Yangi booking yaratish (Foydalanuvchi yoki Admin)' })
   @ApiBody({
-    description: 'Create new booking',
+    description: 'Booking yaratish ma\'lumotlari',
     schema: {
       example: {
-        fieldId: "eab66ba7-08a5-4f76-a161-7306f130d434",
-        bookingDate: "2026-04-15",
+        fieldId: "uuid-field-id",
+        bookingDate: "2026-03-29",
         startTime: "18:00",
         endTime: "19:00",
-        totalPrice: 180000,
-        note: "Do'stlarim bilan o'ynaymiz"
+        totalPrice: 150000,
+        note: "Admin orqali band qilindi",
+        clientName: "Ali Valiyev",
+        clientPhone: "+998901234567"
       }
     }
   })
@@ -48,22 +50,52 @@ export class BookingsController {
     return this.bookingsService.create(userId, dto);
   }
 
-  // User: o'z bookinglarini ko'rish
+  // User: kelgusi bookinglari
+  @Get('my/upcoming')
+  @ApiOperation({ summary: 'Foydalanuvchining kelgusi (bo\'ladigan) bookinglarini olish' })
+  @ApiResponse({ status: 200, description: 'Kelgusi bookinglar ro\'yxati' })
+  getUpcoming(@CurrentUser('id') userId: string) {
+    return this.bookingsService.getUpcoming(userId);
+  }
+
+  // User: o'tgan bookinglari (history)
+  @Get('my/history')
+  @ApiOperation({ summary: 'Foydalanuvchining o\'tgan (tarixdagi) bookinglarini olish' })
+  @ApiResponse({ status: 200, description: 'Bookinglar tarixi ro\'yxati' })
+  getHistory(@CurrentUser('id') userId: string) {
+    return this.bookingsService.getHistory(userId);
+  }
+
+  // User: faol bookinglari (bugun)
+  @Get('my/active')
+  @ApiOperation({ summary: 'Foydalanuvchining bugungi faol (tasdiqlangan) bookinglarini olish' })
+  @ApiResponse({ status: 200, description: 'Bugungi faol bookinglar ro\'yxati' })
+  getActive(@CurrentUser('id') userId: string) {
+    return this.bookingsService.getActive(userId);
+  }
+
+  // User: barcha bookinglari
   @Get('my')
+  @ApiOperation({ summary: 'Foydalanuvchining barcha bookinglarini olish' })
   getMyBookings(@CurrentUser('id') userId: string) {
-    return this.bookingsService.getMyBookings(userId);
+    return this.bookingsService.getUpcoming(userId); // Default upcoming
   }
 
   // User: bekor qilish
   @Patch(':id/cancel')
+  @ApiOperation({ summary: 'Foydalanuvchi bookingni bekor qilishi' })
+  @ApiResponse({ status: 200, description: 'Booking bekor qilindi' })
   cancel(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.bookingsService.cancel(id, userId);
   }
 
   // Admin: o'z maydon bookinglarini ko'rish
+  @ApiTags('Admin - Bookings')
   @Get('admin')
   @UseGuards(RolesGuard)
   @Roles(Role.admin, Role.superadmin)
+  @ApiOperation({ summary: 'Admin o\'z maydon bookinglarini ko\'rishi' })
+  @ApiResponse({ status: 200, description: 'Bookinglar ro\'yxati' })
   getAdminBookings(
     @CurrentUser('id') userId: string,
     @Query('status') status?: BookingStatus,
@@ -72,9 +104,12 @@ export class BookingsController {
   }
 
   // Admin: tasdiqlash / rad etish
+  @ApiTags('Admin - Bookings')
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles(Role.admin, Role.superadmin)
+  @ApiOperation({ summary: 'Admin: tasdiqlash / rad etish' })
+  @ApiResponse({ status: 200, description: 'Booking holati yangilandi' })
   updateStatus(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
@@ -84,9 +119,12 @@ export class BookingsController {
   }
 
   // Superadmin: barcha bookinglar
+  @ApiTags('Admin - Bookings')
   @Get('all')
   @UseGuards(RolesGuard)
   @Roles(Role.superadmin)
+  @ApiOperation({ summary: 'Superadmin barcha bookinglarni ko\'rishi' })
+  @ApiResponse({ status: 200, description: 'Barcha bookinglar ro\'yxati' })
   getAllBookings(@Query('status') status?: BookingStatus) {
     return this.bookingsService.getAllBookings(status);
   }

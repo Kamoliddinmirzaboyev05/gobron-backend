@@ -16,14 +16,11 @@ export class SlotsScheduler {
       where: { isActive: true },
     });
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-
     for (const field of fields) {
-      await this.slotsService.generateSlotsForField(field.id, tomorrow);
+      // Har kuni keyingi 3 kunlik slotlarni tayyorlab qo'yish
+      await this.slotsService.generateSlotsForDays(field.id, 3);
     }
 
-    console.log(`${fields.length} ta maydon uchun ertangi slotlar yaratildi`);
+    console.log(`${fields.length} ta maydon uchun 3 kunlik slotlar yaratildi`);
   }
 }

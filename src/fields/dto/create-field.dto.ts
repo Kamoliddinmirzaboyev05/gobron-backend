@@ -76,6 +76,12 @@ export class CreateFieldDto {
   @IsOptional()
   closeTime?: string;
 
+  @ApiProperty({ example: 60, required: false, description: 'Slot davomiyligi (daqiqada)' })
+  @IsInt()
+  @Min(30)
+  @IsOptional()
+  slotDuration?: number;
+
   @ApiProperty({ example: '+998901234567', required: false, nullable: true })
   @IsString()
   @IsOptional()

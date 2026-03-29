@@ -149,6 +149,64 @@ export class FieldsService {
     });
   }
 
+  // Ommabop maydonlar (rating va reviewCount bo'yicha)
+  async getPopular() {
+    return this.prisma.field.findMany({
+      where: { isActive: true },
+      orderBy: [
+        { rating: 'desc' },
+        { reviewCount: 'desc' },
+      ],
+      take: 10,
+    });
+  }
+
+  // Tavsiya etilgan maydonlar (yangi va yuqori ratingli)
+  async getRecommended() {
+    return this.prisma.field.findMany({
+      where: { isActive: true },
+      orderBy: [
+        { createdAt: 'desc' },
+        { rating: 'desc' },
+      ],
+      take: 10,
+    });
+  }
+
+  // Maydon bandlik holati (summary)
+  async getAvailability(fieldId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const next7Days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      next7Days.push(d);
+    }
+
+    const slots = await this.prisma.timeSlot.findMany({
+      where: {
+        fieldId,
+        slotDate: { in: next7Days },
+      },
+    });
+
+    return next7Days.map(date => {
+      const dateStr = date.toISOString().split('T')[0];
+      const daySlots = slots.filter(s => s.slotDate.toISOString().split('T')[0] === dateStr);
+      const availableCount = daySlots.filter(s => s.isAvailable).length;
+      const totalCount = daySlots.length;
+
+      return {
+        date: dateStr,
+        availableCount,
+        totalCount,
+        percentage: totalCount > 0 ? Math.round((availableCount / totalCount) * 100) : 0,
+      };
+    });
+  }
+
   // Bitta maydon — public
   async findOne(id: string) {
     const field = await this.prisma.field.findUnique({
@@ -185,17 +243,6 @@ export class FieldsService {
     return this.prisma.field.findMany({
       include: { user: true },
       orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  // Maydon slotlari
-  async getSlots(fieldId: string, date: string) {
-    return this.prisma.timeSlot.findMany({
-      where: {
-        fieldId,
-        slotDate: new Date(date),
-      },
-      orderBy: { startTime: 'asc' },
     });
   }
 

@@ -9,5 +9,6 @@ import { SlotsModule } from '../slots/slots.module';
   imports: [GatewayModule, NotificationsModule, SlotsModule],
   providers: [BookingsService],
   controllers: [BookingsController],
+  exports: [BookingsService],
 })
 export class BookingsModule {}

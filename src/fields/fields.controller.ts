@@ -23,18 +23,51 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
-import { SlotResponseDto } from '../slots/dto/slot-response.dto';
+import { FieldsSlotsResponseDto } from '../slots/dto/slot-response.dto';
+import { SlotsService } from '../slots/slots.service';
 
 @ApiTags('Fields')
 @Controller('fields')
 export class FieldsController {
-  constructor(private fieldsService: FieldsService) {}
+  constructor(
+    private fieldsService: FieldsService,
+    private slotsService: SlotsService,
+  ) {}
 
   @Get('search')
   @ApiOperation({ summary: 'Search and filter fields by name, city, price, rating and amenities' })
   @ApiResponse({ status: 200, description: 'Return list of fields matching search criteria' })
   search(@Query() dto: SearchFieldsDto) {
     return this.fieldsService.search(dto);
+  }
+
+  @Get('popular')
+  @ApiOperation({ summary: 'Ommabop maydonlarni olish' })
+  @ApiResponse({ status: 200, description: 'Ommabop maydonlar ro\'yxati' })
+  getPopular() {
+    return this.fieldsService.getPopular();
+  }
+
+  @Get('recommended')
+  @ApiOperation({ summary: 'Tavsiya etilgan maydonlarni olish' })
+  @ApiResponse({ status: 200, description: 'Tavsiya etilgan maydonlar ro\'yxati' })
+  getRecommended() {
+    return this.fieldsService.getRecommended();
+  }
+
+  @Get(':id/availability')
+  @ApiOperation({ summary: 'Maydon bandlik holati (keyingi 7 kun)' })
+  @ApiResponse({ 
+    status: 200, 
+    description: '7 kunlik bandlik summary',
+    schema: {
+      example: [
+        { date: '2026-03-29', availableCount: 5, totalCount: 15, percentage: 33 }
+      ]
+    }
+  })
+  getAvailability(@Param('id') id: string) {
+    return this.fieldsService.getAvailability(id);
   }
 
   // Public: barcha aktiv maydonlar (city filter bilan)
@@ -58,35 +91,52 @@ export class FieldsController {
     return this.fieldsService.findOne(id);
   }
 
-  // Public: maydon slotlari
+  // Public: maydon slotlari (3 kunlik)
   @Get(':id/slots')
-  @ApiOperation({ summary: 'Maydonning bo\'sh vaqtlarini olish' })
-  @ApiResponse({ status: 200, type: [SlotResponseDto], description: 'Sana bo\'yicha slotlar ro\'yxati' })
-  getSlots(@Param('id') fieldId: string, @Query('date') date: string) {
-    return this.fieldsService.getSlots(fieldId, date);
+  @ApiOperation({ summary: 'Maydonning bo\'sh vaqtlarini olish (keyingi 3 kun yoki tanlangan sana)' })
+  @ApiResponse({ status: 200, type: FieldsSlotsResponseDto, description: 'Guruhlangan slotlar ro\'yxati' })
+  getSlots(@Param('id') fieldId: string, @Query('date') date?: string) {
+    return this.slotsService.getSlots(fieldId, date);
   }
 
   // Admin: o'z maydonini ko'rish
+  @ApiTags('Admin - Fields')
   @Get('admin/my')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.admin, Role.superadmin)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Adminning o\'z maydonini ko\'rishi' })
+  @ApiResponse({ status: 200, description: 'Maydon ma\'lumotlari' })
   getMyField(@CurrentUser('id') userId: string) {
     return this.fieldsService.findMyField(userId);
   }
 
   // Admin: o'z maydonini yangilash (PATCH)
+  @ApiTags('Admin - Fields')
   @Patch('admin/my')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.admin, Role.superadmin)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Adminning o\'z maydonini qisman yangilashi (PATCH)' })
+  @ApiResponse({ status: 200, description: 'Yangilangan maydon' })
   updatePatch(@CurrentUser('id') userId: string, @Body() dto: UpdateFieldDto) {
     return this.fieldsService.update(userId, dto);
   }
 
+  // Admin: o'z maydonini to'liq yangilash (PUT)
+  @ApiTags('Admin - Fields')
+  @Put('admin/my')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin, Role.superadmin)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Adminning o\'z maydonini to\'liq yangilashi (PUT)' })
+  @ApiResponse({ status: 200, description: 'Yangilangan maydon' })
+  updatePut(@CurrentUser('id') userId: string, @Body() dto: UpdateFieldDto) {
+    return this.fieldsService.update(userId, dto);
+  }
+
   // Admin: maydon rasmini yuklash
+  @ApiTags('Admin - Images')
   @Post('admin/my/upload-image')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.admin, Role.superadmin)
@@ -106,86 +156,35 @@ export class FieldsController {
     }
   })
   @ApiOperation({ summary: 'Admin maydon rasmini yuklashi' })
+  @ApiResponse({ status: 201, description: 'Rasm muvaffaqiyatli yuklandi' })
   async uploadImage(@CurrentUser('id') userId: string, @UploadedFile() file: Express.Multer.File) {
-    try {
-      if (!file) {
-        throw new BadRequestException('Rasm fayli kerak');
-      }
-      
-      console.log('Fayl qabul qilindi:', file.originalname);
-      console.log('Fayl hajmi:', file.size);
-      console.log('Fayl turi:', file.mimetype);
-      
-      // Adminning o'z maydonini topish
-      const field = await this.fieldsService.findMyField(userId);
-      
-      const result = await this.fieldsService.uploadImage(field.id, file);
-      return {
-        success: true,
-        message: 'Rasm muvaffaqiyatli yuklandi',
-        data: result
-      };
-    } catch (error) {
-      console.error('Rasm yuklashda xato:', error);
-      throw error;
-    }
+    if (!file) throw new BadRequestException('Rasm yuklanmadi');
+    return this.fieldsService.uploadImage(userId, file);
   }
 
   // Admin: maydon rasmini o'chirish
-  @Delete('admin/my/image')
+  @ApiTags('Admin - Images')
+  @Delete('admin/my/image/:imageName')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.admin, Role.superadmin)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin maydon rasmini o\'chirishi' })
-  @ApiBody({
-    description: 'Admin maydon rasmini o\'chirishi uchun rasm URLini yuboring',
-    schema: {
-      type: 'object',
-      properties: {
-        imageUrl: {
-          type: 'string',
-          example: 'https://i.ibb.co/example/image.jpg',
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 200, description: 'Rasm muvaffaqiyatli o\'chirildi' })
-  @ApiResponse({ status: 400, description: 'Rasm URLi topilmadi yoki xato' })
-  @ApiResponse({ status: 404, description: 'Maydon topilmadi' })
-  async deleteImage(@CurrentUser('id') userId: string, @Body('imageUrl') imageUrl: string) {
-    try {
-      if (!imageUrl) {
-        throw new BadRequestException('Image URL is required');
-      }
-      const field = await this.fieldsService.findMyField(userId);
-      const updatedField = await this.fieldsService.deleteImage(field.id, imageUrl);
-      return {
-        success: true,
-        message: 'Rasm muvaffaqiyatli o\'chirildi',
-        data: updatedField
-      };
-    } catch (error) {
-      console.error('Rasm o\'chirishda xato:', error);
-      throw error;
-    }
-  }
-
-  // Admin: o'z maydonini to'liq yangilash (PUT)
-  @Put('admin/my')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.admin, Role.superadmin)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Adminning o\'z maydonini to\'liq yangilashi (PUT)' })
-  updatePut(@CurrentUser('id') userId: string, @Body() dto: UpdateFieldDto) {
-    return this.fieldsService.update(userId, dto);
+  @ApiResponse({ status: 200, description: 'Rasm o\'chirildi' })
+  deleteImage(
+    @CurrentUser('id') userId: string,
+    @Param('imageName') imageName: string,
+  ) {
+    return this.fieldsService.deleteImage(userId, imageName);
   }
 
   // Superadmin: barcha maydonlar
-  @Get('superadmin/all')
+  @ApiTags('Admin - Fields')
+  @Get('admin/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.superadmin)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Superadmin barcha maydonlarni ko\'rishi' })
+  @ApiResponse({ status: 200, description: 'Barcha maydonlar ro\'yxati' })
   findAllAdmin() {
     return this.fieldsService.findAllAdmin();
   }
